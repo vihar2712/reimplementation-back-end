@@ -78,7 +78,6 @@ class Team < ApplicationRecord
   # Add member to the team
   def add_member(user)
     raise "The user #{user.name} is already a member of the team #{name}" if has_as_member?(user)
-
     can_add_member = false
     unless full?
       can_add_member = true
