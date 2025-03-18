@@ -5,7 +5,6 @@ class AssignmentParticipant < Participant
   belongs_to :user
   validates :handle, presence: true
 
-
   def set_handle
     self.handle = if user.handle.nil? || (user.handle == '')
                     user.name
@@ -25,4 +24,12 @@ class AssignmentParticipant < Participant
     self
   end
 
+  #E2479
+  def team
+    AssignmentTeam.team(self)
+  end
+
+  def team_user
+    TeamsUser.where(team_id: team.id, user_id: user_id).first if team
+  end
 end
