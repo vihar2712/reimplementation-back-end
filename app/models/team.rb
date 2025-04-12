@@ -179,7 +179,7 @@ class Team < ApplicationRecord
 
   # This method allows us to generate team names
   # based on whether anonymized view is set or not
-  def name(ip = nil)
+  def name(ip_address = nil)
     if User.anonymized_view?(ip_address)
       return "Anonymized_Team_#{self[:id]}"
     else
