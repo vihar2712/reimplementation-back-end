@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2025_02_16_020117) do
+ActiveRecord::Schema[8.0].define(version: 2025_04_15_013415) do
   create_table "account_requests", charset: "utf8mb4", collation: "utf8mb4_0900_ai_ci", force: :cascade do |t|
     t.string "username"
     t.string "full_name"
@@ -102,8 +102,20 @@ ActiveRecord::Schema[8.0].define(version: 2025_02_16_020117) do
     t.boolean "enable_pair_programming", default: false
     t.boolean "has_teams", default: false
     t.boolean "has_topics", default: false
+    t.boolean "auto_assign_mentor", default: false
+    t.boolean "team_reviewing_enabled", default: false
     t.index ["course_id"], name: "index_assignments_on_course_id"
     t.index ["instructor_id"], name: "index_assignments_on_instructor_id"
+  end
+
+  create_table "bids", charset: "utf8mb4", collation: "utf8mb4_0900_ai_ci", force: :cascade do |t|
+    t.integer "topic_id"
+    t.integer "team_id"
+    t.integer "priority"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["team_id"], name: "index_bids_on_team_id"
+    t.index ["topic_id"], name: "index_bids_on_topic_id"
   end
 
   create_table "bookmark_ratings", charset: "utf8mb4", collation: "utf8mb4_0900_ai_ci", force: :cascade do |t|
@@ -286,6 +298,7 @@ ActiveRecord::Schema[8.0].define(version: 2025_02_16_020117) do
     t.integer "reviewee_id", default: 0, null: false
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.boolean "team_reviewing_enabled", default: false
     t.index ["reviewer_id"], name: "fk_response_map_reviewer"
   end
 
@@ -334,6 +347,17 @@ ActiveRecord::Schema[8.0].define(version: 2025_02_16_020117) do
     t.index ["team_id"], name: "index_signed_up_teams_on_team_id"
   end
 
+  create_table "submission_records", charset: "utf8mb4", collation: "utf8mb4_0900_ai_ci", force: :cascade do |t|
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.text "type"
+    t.string "content"
+    t.string "operation"
+    t.integer "team_id"
+    t.string "user"
+    t.integer "assignment_id"
+  end
+
   create_table "ta_mappings", charset: "utf8mb4", collation: "utf8mb4_0900_ai_ci", force: :cascade do |t|
     t.bigint "course_id", null: false
     t.bigint "user_id", null: false
@@ -347,7 +371,18 @@ ActiveRecord::Schema[8.0].define(version: 2025_02_16_020117) do
   create_table "teams", charset: "utf8mb4", collation: "utf8mb4_0900_ai_ci", force: :cascade do |t|
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
-    t.bigint "assignment_id", null: false
+    t.bigint "assignment_id"
+    t.string "name"
+    t.integer "parent_id"
+    t.string "type"
+    t.text "comments_for_advertisement"
+    t.boolean "advertise_for_partner"
+    t.text "submitted_hyperlinks"
+    t.integer "directory_num"
+    t.integer "grade_for_submission"
+    t.text "comment_for_submission"
+    t.boolean "make_public", default: false
+    t.integer "pair_programming_request", limit: 1
     t.index ["assignment_id"], name: "index_teams_on_assignment_id"
   end
 
@@ -385,6 +420,16 @@ ActiveRecord::Schema[8.0].define(version: 2025_02_16_020117) do
     t.index ["institution_id"], name: "index_users_on_institution_id"
     t.index ["parent_id"], name: "index_users_on_parent_id"
     t.index ["role_id"], name: "index_users_on_role_id"
+  end
+
+  create_table "versions", charset: "utf8mb4", collation: "utf8mb4_general_ci", force: :cascade do |t|
+    t.string "whodunnit"
+    t.datetime "created_at"
+    t.bigint "item_id", null: false
+    t.string "item_type", limit: 191, null: false
+    t.string "event", null: false
+    t.text "object", size: :long
+    t.index ["item_type", "item_id"], name: "index_versions_on_item_type_and_item_id"
   end
 
   add_foreign_key "account_requests", "institutions"
