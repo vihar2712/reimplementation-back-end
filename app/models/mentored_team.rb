@@ -19,7 +19,7 @@ class MentoredTeam < AssignmentTeam
         raise ImportError, "The user '#{teammate}' was not found. <a href='/users/new'>Create</a> this user?"
       else
         unless TeamsUser.find_by(team_id: id, user_id: user.id)
-          participant = AssignmentParticipant.find_by(user_id: user.id, parent_id: parent_id)
+          participant = AssignmentParticipant.find_by(user_id: user.id, assignment_id: parent_id)
           add_member(participant) if participant
         end
       end

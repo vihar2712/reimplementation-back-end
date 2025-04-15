@@ -1,8 +1,4 @@
 class AssignmentTeam < Team
-  require File.dirname(__FILE__) + '/analytic/assignment_team_analytic'
-  include AssignmentTeamAnalytic
-  include Scoring
-
   belongs_to :assignment, class_name: 'Assignment', foreign_key: 'parent_id'
   has_many :review_mappings, class_name: 'ReviewResponseMap', foreign_key: 'reviewee_id'
   has_many :review_response_maps, foreign_key: 'reviewee_id'
@@ -49,7 +45,7 @@ class AssignmentTeam < Team
 
   # Topic id picked by the team for the assignment
   def topic_id
-    SignedUpTeam.find_by(team_id: id, is_waitlisted: 0).try(:topic_id)
+    SignedUpTeam.find_by(team_id: id, is_waitlisted: 0)&.sign_up_topic_id
   end
 
   # Whether the team has submitted work or not
@@ -62,7 +58,7 @@ class AssignmentTeam < Team
     users = self.users
     participants = []
     users.each do |user|
-      participant = AssignmentParticipant.find_by(user_id: user.id, parent_id: parent_id)
+      participant = AssignmentParticipant.find_by(user_id: user.id, assignment_id: assignment_id)
       participants << participant unless participant.nil?
     end
     participants
@@ -196,7 +192,7 @@ class AssignmentTeam < Team
         next
       end
       team = Team.find(teams_user.team_id)
-      return team if team.parent_id == participant.parent_id
+      return team if team.parent_id == participant.assignment_id
     end
     nil
   end
@@ -217,7 +213,7 @@ class AssignmentTeam < Team
 
   # Get the path of the team directory
   def path
-    File.join(assignment.path, directory_num.to_s)
+    File.join(assignment.directory_path, directory_num.to_s)
   end
 
   # Set the directory number for this team
@@ -226,7 +222,7 @@ class AssignmentTeam < Team
 
     max_num = AssignmentTeam.where(parent_id: parent_id).order('directory_num desc').first.directory_num
     dir_num = max_num ? max_num + 1 : 0
-    update_attributes(directory_num: dir_num)
+    update(directory_num: dir_num)
   end
 
   # Checks if the AssignmentTeam has received any peer reviews
@@ -257,7 +253,7 @@ class AssignmentTeam < Team
 
   # Assigns the current team to a given signup topic and sets up the necessary associations.
   def assign_team_to_topic(signup_topic)
-    SignedUpTeam.create(topic_id: signup_topic.id, team_id: id, is_waitlisted: 0)
+    SignedUpTeam.create(sign_up_topic_id: signup_topic.id, team_id: id, is_waitlisted: 0)
   
     # Create a node for the team
     team_node = TeamNode.create(parent_id: signup_topic.assignment_id, node_object_id: id)

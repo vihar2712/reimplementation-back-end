@@ -17,4 +17,12 @@ class AssignmentParticipant < Participant
     self.save
   end
 
+  # returns the reviewer of the assignment. Checks the team_reviewing_enabled flag to
+  # determine whether this AssignmentParticipant or their team is the reviewer
+  def get_reviewer
+    return team if assignment.team_reviewing_enabled
+
+    self
+  end
+
 end

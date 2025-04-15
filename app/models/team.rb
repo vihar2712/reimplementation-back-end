@@ -8,7 +8,7 @@ class Team < ApplicationRecord
   has_many :signed_up_teams, dependent: :destroy
   has_many :bids, dependent: :destroy
   has_many :participants
-  belongs_to :assignment
+  belongs_to :assignment, optional: true
 
   has_paper_trail
 
@@ -86,11 +86,9 @@ class Team < ApplicationRecord
       parent = TeamNode.find_by(node_object_id: id)
       TeamUserNode.create(parent_id: parent.id, node_object_id: t_user.id)
 
-      if CourseParticipant.find_by(parent_id: parent.id, user_id: user.id).nil?
-        CourseParticipant.create(parent_id: parent.id, user_id: user.id, permission_granted: user.master_permission_granted)
+      if CourseParticipant.find_by(assignment_id: parent.id, user_id: user.id).nil?
+        CourseParticipant.create(assignment_id: parent.id, user_id: user.id, permission_granted: user.master_permission_granted)
       end
-
-      ExpertizaLogger.info LoggerMessage.new('Model:Team', user.name, "Added member to the team #{id}")
     end
     can_add_member
   end
@@ -100,15 +98,18 @@ class Team < ApplicationRecord
   # This method uses the Factory Method pattern by delegating the specific participant class
   # to the `participant_class` method, which must be defined in each subclass.
   def add_participant(user)
-    existing = participant_class.find_by(parent_id: parent_id, user_id: user.id)
+    foreign_key = participant_class == AssignmentParticipant ? :assignment_id : :parent_id
+  
+    existing = participant_class.find_by(foreign_key => parent_id, user_id: user.id)
     return nil if existing
   
     participant_class.create(
-      parent_id: parent_id,
+      foreign_key => parent_id,
       user_id: user.id,
-      permission_granted: user.master_permission_granted
+      permission_granted: user.master_permission_granted,
+      handle: "handle_#{user.id}"
     )
-  end
+  end  
   
   # Returns the number of users in the team
   def size
@@ -119,7 +120,8 @@ class Team < ApplicationRecord
   # Start by adding single members to teams that are one member too small.
   # Add two-member teams to teams that are two members too small. etc.
   def self.create_random_teams(parent, team_type, min_team_size)
-    participants = Participant.where(parent_id: parent.id, type: parent.class.to_s + 'Participant', can_mentor: [false, nil])
+    participant_model = "#{parent.class}Participant".constantize
+    participants = participant_model.where(assignment_id: parent.id, can_mentor: [false, nil])
     participants = participants.sort { rand(-1..1) }
     users = participants.map { |p| User.find(p.user_id) }.to_a
     # find teams still need team members and users who are not in any team
@@ -155,7 +157,7 @@ class Team < ApplicationRecord
     num_of_teams = users.length.fdiv(min_team_size).ceil
     next_team_member_index = 0
     (1..num_of_teams).to_a.each do |i|
-      team = Object.const_get(team_type + 'Team').create(name: 'Team_' + i.to_s, parent_id: parent.id)
+      team = Object.const_get(team_type + 'Team').create(name: 'Team_' + i.to_s, parent_id: parent.id, assignment_id: parent.id)
       TeamNode.create(parent_id: parent.id, node_object_id: team.id)
       min_team_size.times do
         break if next_team_member_index >= users.length
@@ -169,12 +171,12 @@ class Team < ApplicationRecord
 
   # Generate the team name
   def self.generate_team_name(prefix = '')
-    last_team = Team.where('name LIKE ?', "#{_team_name_prefix} Team_%")
-                  .order("CAST(SUBSTRING(name, LENGTH('#{_team_name_prefix} Team_') + 1) AS UNSIGNED) DESC")
-                  .first
+    prefix = 'Team' if prefix.blank?
+    last_team = Team.where('name LIKE ?', "#{prefix}_%")
+                    .order(Arel.sql("CAST(SUBSTRING(name, LENGTH('#{prefix}_') + 1) AS UNSIGNED) DESC"))
+                    .first
     counter = last_team ? last_team.name.scan(/\d+/).first.to_i + 1 : 1
-    team_name = "#{_team_name_prefix} Team_#{counter}"
-    team_name
+    "#{prefix}_#{counter}"
   end
 
   # This method allows us to generate team names
@@ -255,7 +257,7 @@ class Team < ApplicationRecord
       if options[:team_name] == 'false'
         team_members = TeamsUser.where(team_id: team.id)
         team_members.each do |user|
-          output.push(user.name)
+          output.push(user.user.name)
         end
       end
       csv << output
@@ -270,7 +272,6 @@ class Team < ApplicationRecord
     team = create(name: team_name, parent_id: parent_id)
     # new teamnode will have current_task.id as parent_id and team_id as node_object_id.
     TeamNode.create(parent_id: parent_id, node_object_id: team.id)
-    ExpertizaLogger.info LoggerMessage.new('Model:Team', '', "New TeamNode created with teamname #{team_name}")
 
     # If user IDs are provided, add them to the team.
     user_ids.each do |user_id|
