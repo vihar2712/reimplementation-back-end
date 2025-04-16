@@ -52,16 +52,57 @@ RSpec.describe Participant, type: :model do
       expect(participant).not_to be_valid
       expect(participant.errors[:user]).to include("must exist")
     end
+  end
 
-    it "is invalid without an assignment" do
+  describe "custom validations" do
+    it "is invalid without assignment and course" do
       role = create(:role, :student)
       institution = create(:institution)
       user = create(:user, role: role, institution: institution)
-      participant = Participant.new(user: user, assignment: nil)
+
+      participant = Participant.new(user: user, assignment: nil, course_id: nil)
+
       expect(participant).not_to be_valid
-      expect(participant.errors[:assignment]).to include("must exist")
+      expect(participant.errors[:base]).to include("Either assignment or course must be present")
     end
+
+    it "is valid with assignment present" do
+      # Manually create the instructor role (using the trait with explicit ID)
+      instructor_role = create(:role, :instructor)
+
+      # Create a user with that role
+      institution = create(:institution)
+      instructor = create(:user, role: instructor_role, institution: institution)
+
+      # Create an assignment with the instructor
+      assignment = create(:assignment, instructor: instructor)
+
+      # Create a participant with the assignment (no course)
+      role = create(:role, :student)
+      user = create(:user, role: role, institution: institution)
+      participant = Participant.new(user: user, assignment: assignment)
+
+      expect(participant).to be_valid
+    end
+
+    it "is valid with course_id present and no assignment" do
+      student_role = create(:role, :student)
+      instructor_role = create(:role, :instructor)
+      institution = create(:institution)
+
+      user = create(:user, role: student_role, institution: institution)
+      instructor = create(:user, role: instructor_role, institution: institution)
+
+      course = create(:course, instructor: instructor)  # explicitly assign correct type
+
+      participant = Participant.new(user: user, assignment: nil, course_id: course.id)
+
+      expect(participant).to be_valid
+    end
+
+
   end
+
 
   describe "#fullname" do
     it "returns the full name of the associated user" do
