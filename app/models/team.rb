@@ -2,7 +2,7 @@ class Team < ApplicationRecord
   validates :name, uniqueness: { scope: :parent_id, message: "is already in use." }
 
   has_many :teams_users, dependent: :destroy
-  has_many :team_participants, dependent: :destroy
+  has_many :teams_participants, dependent: :destroy
   has_many :users, through: :teams_users
   has_many :join_team_requests, dependent: :destroy
   has_one :team_node, foreign_key: :node_object_id, dependent: :destroy
