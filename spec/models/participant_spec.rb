@@ -114,7 +114,291 @@ RSpec.describe Participant, type: :model do
       user.define_singleton_method(:fullname) { full_name }
 
       participant = Participant.new(user: user, assignment: assignment)
-      expect(participant.fullname).to eq("Jane Doe")
+      expect(participant.name).to eq("Jane Doe")
     end
   end
+
+  describe "#responses" do
+    let(:student_role) { create(:role, :student) }
+    let(:institution)  { create(:institution) }
+    let(:user)         { create(:user, role: student_role, institution: institution) }
+    let(:participant)  { create(:participant, user: user, assignment: assignment) }
+
+    context "when there are no response_maps" do
+      it "returns an empty array" do
+        expect(participant.responses).to eq([])
+      end
+    end
+
+    context "when there are response_maps" do
+      let(:resp1) { double("resp1") }
+      let(:resp2) { double("resp2") }
+
+      let(:rm1) { instance_double(ResponseMap, response: resp1) }
+      let(:rm2) { instance_double(ResponseMap, response: resp2) }
+
+      let(:maps) do
+        arr = [rm1, rm2]
+        # define a real `includes` on this single object
+        def arr.includes(*_args)
+          self
+        end
+        arr
+      end
+
+      before do
+        allow(participant).to receive(:response_maps).and_return(maps)
+      end
+
+      it "returns all of the associated Response objects" do
+        expect(participant.responses).to contain_exactly(resp1, resp2)
+      end
+    end
+  end
+
+  describe "#username" do
+    let(:role)        { create(:role, :student) }
+    let(:institution) { create(:institution) }
+    let(:user)        { create(:user, role: role, institution: institution) }
+    let(:participant) { Participant.new(user: user, assignment: assignment) }
+
+    before do
+      allow(user).to receive(:name).and_return("Alice")
+    end
+
+    it "returns the user's name" do
+      expect(participant.username).to eq("Alice")
+    end
+  end
+
+  describe "#handle" do
+    let(:student_role) { create(:role, :student) }
+    let(:institution)  { create(:institution) }
+    let(:user)         { create(:user, role: student_role, institution: institution) }
+    let(:participant)  { create(:participant, user: user, assignment: assignment, handle: "my_handle") }
+
+    it "returns the stored handle when called without an IP" do
+      expect(participant.handle).to eq("my_handle")
+    end
+
+    it "still returns the stored handle when called with an IP" do
+      expect(participant.handle("1.2.3.4")).to eq("my_handle")
+    end
+  end
+
+  describe "#delete" do
+    let(:participant) { Participant.new(id: 42) }
+
+    before do
+      # never hit the real DB
+      allow(participant).to receive(:destroy)
+    end
+
+    context "when there are response maps" do
+      let(:fake_maps) { [double("RM1"), double("RM2")] }
+
+      before do
+        allow(ResponseMap).to receive(:where)
+                                .with('reviewee_id = ? or reviewer_id = ?', participant.id, participant.id)
+                                .and_return(fake_maps)
+        allow(participant).to receive(:team).and_return(nil)
+      end
+
+      it "raises if not forced" do
+        expect { participant.delete }.to \
+          raise_error("Associations exist for this participant.")
+      end
+
+      it "destroys each map and then the participant when forced" do
+        fake_maps.each { |m| expect(m).to receive(:destroy) }
+        expect(participant).to receive(:destroy)
+
+        participant.delete(true)
+      end
+    end
+
+    context "when there is a team but no maps" do
+      let(:fake_team_user) { double("TU", user_id: 42, destroy: true) }
+      let(:fake_team)      { double("Team", teams_users: fake_team_users) }
+
+      before do
+        allow(ResponseMap).to receive(:where)
+                                .and_return([])
+        allow(participant).to receive(:team).and_return(fake_team)
+      end
+
+      context "and the team has exactly one member" do
+        let(:fake_team_users) { [fake_team_user] }
+
+        before do
+          allow(fake_team).to receive(:delete)
+        end
+
+        it "raises if not forced" do
+          expect { participant.delete }.to \
+            raise_error("Associations exist for this participant.")
+        end
+
+        it "calls team.delete and then destroys the participant when forced" do
+          expect(fake_team).to receive(:delete)
+          expect(participant).to receive(:destroy)
+
+          participant.delete(true)
+        end
+      end
+
+      context "and the team has more than one member" do
+        let(:other_tu)       { double("OtherTU", user_id: 99, destroy: true) }
+        let(:fake_team_users) { [fake_team_user, other_tu] }
+
+        it "removes only the TU for this participant and then destroys the participant" do
+          expect(fake_team_user).to receive(:destroy)
+          expect(other_tu).not_to receive(:destroy)
+          expect(participant).to receive(:destroy)
+
+          participant.delete(true)
+        end
+      end
+    end
+
+    context "when there are no maps and no team" do
+      before do
+        allow(ResponseMap).to receive(:where).and_return([])
+        allow(participant).to receive(:team).and_return(nil)
+      end
+
+      it "just destroys the participant" do
+        expect(participant).to receive(:destroy)
+        participant.delete
+      end
+    end
+  end
+
+  describe "#authorization" do
+    let(:student_role) { create(:role, :student) }
+    let(:instructor_role) { create(:role, :instructor) }
+    let(:institution) { create(:institution) }
+    let(:user) { create(:user, role: student_role, institution: institution) }
+    let(:assignment) { create(:assignment, instructor: create(:user, role: instructor_role, institution: institution)) }
+
+    subject(:participant) do
+      build(
+        :participant,
+        user: user,
+        assignment: assignment,
+        can_submit: can_submit,
+        can_review: can_review,
+        can_take_quiz: can_take_quiz,
+        can_mentor: can_mentor
+      )
+    end
+
+    context "when no special permissions are granted" do
+      let(:can_submit)    { false }
+      let(:can_review)    { false }
+      let(:can_take_quiz) { false }
+      let(:can_mentor)    { false }
+
+      it "returns 'participant'" do
+        expect(participant.authorization).to eq("participant")
+      end
+    end
+
+    context "when the participant is marked as a mentor" do
+      let(:can_submit)    { false }
+      let(:can_review)    { false }
+      let(:can_take_quiz) { false }
+      let(:can_mentor)    { true }
+
+      it "returns 'mentor'" do
+        expect(participant.authorization).to eq("mentor")
+      end
+    end
+
+    context "when eligible only for reading" do
+      let(:can_submit)    { false }
+      let(:can_review)    { true }
+      let(:can_take_quiz) { true }
+      let(:can_mentor)    { false }
+
+      it "returns 'reader'" do
+        expect(participant.authorization).to eq("reader")
+      end
+    end
+
+    context "when eligible only to submit" do
+      let(:can_submit)    { true }
+      let(:can_review)    { false }
+      let(:can_take_quiz) { false }
+      let(:can_mentor)    { false }
+
+      it "returns 'submitter'" do
+        expect(participant.authorization).to eq("submitter")
+      end
+    end
+
+    context "when eligible only to review" do
+      let(:can_submit)    { false }
+      let(:can_review)    { true }
+      let(:can_take_quiz) { false }
+      let(:can_mentor)    { false }
+
+      it "returns 'reviewer'" do
+        expect(participant.authorization).to eq("reviewer")
+      end
+    end
+  end
+
+  describe ".export" do
+    let(:instructor) { create(:user, role: create(:role, :instructor), institution: create(:institution)) }
+    let(:assignment) { create(:assignment, instructor: instructor) }
+    let(:student)    { create(:user, role: create(:role, :student), institution: create(:institution)) }
+    let!(:part1)     { create(:participant, user: student, assignment: assignment, handle: "h1") }
+    let!(:part2)     { create(:participant, user: student, assignment: assignment, handle: "h2") }
+
+    it "exports only the requested fields" do
+      csv     = []
+      options = {
+        'personal_details' => 'true',
+        'role'             => 'true',
+        'parent'           => 'true',
+        'email_options'    => 'true',
+        'handle'           => 'true'
+      }
+
+      Participant.export(csv, assignment.id, options)
+
+      expect(csv.size).to eq(2)
+      csv.each do |row|
+        expect(row).to include(
+                         student.name,
+                         student.full_name,
+                         student.email,
+                         student.role.name,
+                         student.institution.name,
+                         student.email_on_submission,
+                         student.email_on_review,
+                         student.email_on_review_of_review,
+                         match(/^h[12]$/)
+                       )
+      end
+    end
+
+    it "omits fields when options are false" do
+      csv = []
+      opts = {
+        'personal_details' => 'false',
+        'role'             => 'false',
+        'parent'           => 'false',
+        'email_options'    => 'false',
+        'handle'           => 'false'
+      }
+
+      Participant.export(csv, assignment.id, opts)
+      expect(csv).to all(eq([]))
+    end
+  end
+
+
+
 end

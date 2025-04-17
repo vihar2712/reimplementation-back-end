@@ -31,6 +31,8 @@ class User < ApplicationRecord
   delegate :administrator?, to: :role
   delegate :super_administrator?, to: :role
 
+  alias_attribute :fullname, :full_name
+
   def self.instantiate(record)
     case record.role
     when Role::TEACHING_ASSISTANT
