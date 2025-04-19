@@ -6,18 +6,6 @@ RSpec.describe SignedUpTeam, type: :model do
   end
 
   describe '#find_team_participants' do
-    let(:topic) { SignUpTopic.create!(topic_name: 'Topic 1', assignment_id: assignment.id) }
-    let(:team) { Team.create!(name: 'Team A', parent_id: assignment.id) }
-    let(:student_role) { Role.create!(name: 'Student') }
-    let(:user) do
-      User.create!(
-        name: 'student1',
-        full_name: 'Student One',
-        email: 'student1@example.com',
-        password: 'password',
-        role: student_role
-      )
-    end
     let(:instructor) do
       User.create!(
         name: 'Instructor',
@@ -27,6 +15,7 @@ RSpec.describe SignedUpTeam, type: :model do
         role: Role.find_or_create_by!(name: 'Instructor')
       )
     end
+
     let(:assignment) do
       Assignment.create!(
         title: 'Test Assignment',
@@ -36,8 +25,39 @@ RSpec.describe SignedUpTeam, type: :model do
       )
     end
 
+    let(:topic) do
+      SignUpTopic.create!(
+        topic_name: 'Topic 1',
+        assignment_id: assignment.id
+      )
+    end
+
+    let(:team) do
+      Team.create!(
+        name: 'Team A',
+        parent_id:     assignment.id,
+        assignment_id: assignment.id
+      )
+    end
+
+    let(:student_role) { Role.create!(name: 'Student') }
+
+    let(:user) do
+      User.create!(
+        name: 'student1',
+        full_name: 'Student One',
+        email: 'student1@example.com',
+        password: 'password',
+        role: student_role
+      )
+    end
+
     before do
-      @signed_up_team = SignedUpTeam.create!(sign_up_topic: topic, team: team, is_waitlisted: false)
+      @signed_up_team = SignedUpTeam.create!(
+        sign_up_topic: topic,
+        team:          team,
+        is_waitlisted: false
+      )
       TeamsUser.create!(team: team, user: user)
     end
 

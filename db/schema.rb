@@ -375,24 +375,6 @@ ActiveRecord::Schema[8.0].define(version: 2025_04_15_013415) do
     t.datetime "updated_at", null: false
     t.bigint "assignment_id"
     t.bigint "course_id"
-    t.index ["assignment_id"], name: "index_teams_on_assignment_id"
-    t.index ["course_id"], name: "index_teams_on_course_id"
-  end
-
-  create_table "teams_participants", charset: "utf8mb4", collation: "utf8mb4_0900_ai_ci", force: :cascade do |t|
-    t.bigint "team_id", null: false
-    t.integer "duty_id"
-    t.datetime "created_at", null: false
-    t.datetime "updated_at", null: false
-    t.bigint "participant_id", null: false
-    t.index ["participant_id"], name: "index_team_participants_on_participant_id"
-    t.index ["team_id"], name: "index_team_participants_on_team_id"
-  end
-
-  create_table "teams", charset: "utf8mb4", collation: "utf8mb4_0900_ai_ci", force: :cascade do |t|
-    t.datetime "created_at", null: false
-    t.datetime "updated_at", null: false
-    t.bigint "assignment_id"
     t.string "name"
     t.integer "parent_id"
     t.string "type"
@@ -405,6 +387,17 @@ ActiveRecord::Schema[8.0].define(version: 2025_04_15_013415) do
     t.boolean "make_public", default: false
     t.integer "pair_programming_request", limit: 1
     t.index ["assignment_id"], name: "index_teams_on_assignment_id"
+    t.index ["course_id"], name: "index_teams_on_course_id"
+  end
+
+  create_table "teams_participants", charset: "utf8mb4", collation: "utf8mb4_0900_ai_ci", force: :cascade do |t|
+    t.bigint "team_id", null: false
+    t.integer "duty_id"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.bigint "participant_id", null: false
+    t.index ["participant_id"], name: "index_teams_participants_on_participant_id"
+    t.index ["team_id"], name: "index_teams_participants_on_team_id"
   end
 
   create_table "teams_users", charset: "utf8mb4", collation: "utf8mb4_0900_ai_ci", force: :cascade do |t|
