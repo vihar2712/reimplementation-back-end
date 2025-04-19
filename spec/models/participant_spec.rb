@@ -40,9 +40,10 @@ RSpec.describe Participant, type: :model do
       expect(participant.team).to eq(team)
     end
 
-    xit "can have many join_team_requests" do
-      # Skipping join_team_requests testing for now
-      # (This test is marked as pending/skipped with xit)
+    it 'has many join_team_requests with dependent: :destroy' do
+      assoc = Participant.reflect_on_association(:join_team_requests)
+      expect(assoc.macro).to eq(:has_many)
+      expect(assoc.options[:dependent]).to eq(:destroy)
     end
   end
 
@@ -171,21 +172,6 @@ RSpec.describe Participant, type: :model do
     end
   end
 
-  describe "#handle" do
-    let(:student_role) { create(:role, :student) }
-    let(:institution)  { create(:institution) }
-    let(:user)         { create(:user, role: student_role, institution: institution) }
-    let(:participant)  { create(:participant, user: user, assignment: assignment, handle: "my_handle") }
-
-    it "returns the stored handle when called without an IP" do
-      expect(participant.handle).to eq("my_handle")
-    end
-
-    it "still returns the stored handle when called with an IP" do
-      expect(participant.handle("1.2.3.4")).to eq("my_handle")
-    end
-  end
-
   describe "#delete" do
     let(:participant) { Participant.new(id: 42) }
 
@@ -300,7 +286,7 @@ RSpec.describe Participant, type: :model do
       let(:can_mentor)    { false }
 
       it "returns 'participant'" do
-        expect(participant.authorization).to eq("participant")
+        expect(participant.task_role).to eq("participant")
       end
     end
 
@@ -311,7 +297,7 @@ RSpec.describe Participant, type: :model do
       let(:can_mentor)    { true }
 
       it "returns 'mentor'" do
-        expect(participant.authorization).to eq("mentor")
+        expect(participant.task_role).to eq("mentor")
       end
     end
 
@@ -322,7 +308,7 @@ RSpec.describe Participant, type: :model do
       let(:can_mentor)    { false }
 
       it "returns 'reader'" do
-        expect(participant.authorization).to eq("reader")
+        expect(participant.task_role).to eq("reader")
       end
     end
 
@@ -333,7 +319,7 @@ RSpec.describe Participant, type: :model do
       let(:can_mentor)    { false }
 
       it "returns 'submitter'" do
-        expect(participant.authorization).to eq("submitter")
+        expect(participant.task_role).to eq("submitter")
       end
     end
 
@@ -344,7 +330,7 @@ RSpec.describe Participant, type: :model do
       let(:can_mentor)    { false }
 
       it "returns 'reviewer'" do
-        expect(participant.authorization).to eq("reviewer")
+        expect(participant.task_role).to eq("reviewer")
       end
     end
   end
@@ -399,6 +385,33 @@ RSpec.describe Participant, type: :model do
     end
   end
 
+  describe '.export_options' do
+    let(:export_options) { described_class.export_options }
 
+    it 'returns a hash with expected keys' do
+      expected_keys = %w[personal_details role parent email_options handle]
+      expect(export_options.keys).to match_array(expected_keys)
+    end
+
+    it 'provides display text and fields for each option' do
+      export_options.each do |key, value|
+        expect(value).to be_a(Hash)
+        expect(value).to have_key('display')
+        expect(value).to have_key('fields')
+        expect(value['fields']).to be_an(Array)
+        expect(value['display']).to be_a(String)
+      end
+    end
+
+    it 'includes the correct fields for personal_details' do
+      expect(export_options['personal_details']['fields']).to match_array(['name', 'full name', 'email'])
+    end
+
+    it 'includes the correct fields for email_options' do
+      expect(export_options['email_options']['fields']).to match_array(
+                                                             ['email on submission', 'email on review', 'email on metareview']
+                                                           )
+    end
+  end
 
 end

@@ -17,7 +17,7 @@ class Participant < ApplicationRecord
   # Validations
   validates :user_id, presence: true
   # Validation: require either assignment_id or course_id
-  validate :assignment_or_course_presence
+  validate :parent_absent?
 
   # Methods
   def name
@@ -30,10 +30,6 @@ class Participant < ApplicationRecord
 
   def username
     user.name
-  end
-
-  def handle(_ip_address = nil)
-    read_attribute(:handle)
   end
 
   def delete(force = nil)
@@ -54,13 +50,13 @@ class Participant < ApplicationRecord
     destroy
   end
 
-  def authorization
-    role = 'participant'
-    role = 'mentor'    if can_mentor
-    role = 'reader'    if !can_submit && can_review   && can_take_quiz
-    role = 'submitter' if  can_submit && !can_review  && !can_take_quiz
-    role = 'reviewer'  if !can_submit && can_review   && !can_take_quiz
-    role
+  def task_role
+    task = 'participant'
+    task = 'mentor'    if can_mentor
+    task = 'reader'    if !can_submit && can_review   && can_take_quiz
+    task = 'submitter' if  can_submit && !can_review  && !can_take_quiz
+    task = 'reviewer'  if !can_submit && can_review   && !can_take_quiz
+    task
   end
 
   def self.export(csv, parent_id, options)
@@ -76,9 +72,35 @@ class Participant < ApplicationRecord
     end
   end
 
+  def self.export_options
+    {
+      'personal_details' => {
+        'display' => 'Include personal details',
+        'fields' => ['name', 'full name', 'email']
+      },
+      'role' => {
+        'display' => 'Include role',
+        'fields' => ['role']
+      },
+      'parent' => {
+        'display' => 'Include parent information',
+        'fields' => ['parent']
+      },
+      'email_options' => {
+        'display' => 'Include email preferences',
+        'fields' => ['email on submission', 'email on review', 'email on metareview']
+      },
+      'handle' => {
+        'display' => 'Include handle',
+        'fields' => ['handle']
+      }
+    }
+  end
+
+
   private
 
-  def assignment_or_course_presence
+  def parent_absent?
     if assignment.blank? && course.blank?
       errors.add(:base, "Either assignment or course must be present")
     elsif assignment.present? && course.present?
