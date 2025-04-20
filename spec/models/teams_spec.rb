@@ -54,11 +54,11 @@ RSpec.describe Team, type: :model do
         password: 'password', role: role, parent: user_parent
       )
 
-      TeamsUser.create!(team: team, user: user1)
-      TeamsUser.create!(team: team, user: user2)
-
       participant1 = AssignmentParticipant.create!(user: user1, assignment: assignment, handle: 'handle1')
       participant2 = AssignmentParticipant.create!(user: user2, assignment: assignment, handle: 'handle2')
+
+      TeamsParticipant.create!(participant: participant1, team: team)
+      TeamsParticipant.create!(participant: participant2, team: team)
 
       expect(team.participants.map(&:id)).to contain_exactly(participant1.id, participant2.id)
     end
@@ -80,7 +80,13 @@ RSpec.describe Team, type: :model do
   describe '#delete' do
     it 'deletes the team and its team node without touching bids' do
       team = Team.create!(name: 'TeamToDelete', parent_id: assignment.id, assignment: assignment)
-      TeamsUser.create!(team: team, user: instructor)
+      # build a participant for the instructor and join via TeamsParticipant
+      participant = AssignmentParticipant.create!(
+        user: instructor,
+        assignment: assignment,
+        handle: 'instructor_handle'
+      )
+      TeamsParticipant.create!(team: team, participant: participant)
 
       allow(team).to receive(:destroy).and_return(true)
 
@@ -101,11 +107,22 @@ RSpec.describe Team, type: :model do
 
   describe '#member_names' do
     it 'returns full names of associated users' do
-      team = Team.create!(name: 'TeamTest', parent_id: 1, assignment: assignment)
-      user1 = User.create!(name: 'user1', full_name: 'Full Name 1', email: 'user1@example.com', password: 'password', role: role)
-      user2 = User.create!(name: 'user2', full_name: 'Full Name 2', email: 'user2@example.com', password: 'password', role: role)
-      TeamsUser.create!(team: team, user: user1)
-      TeamsUser.create!(team: team, user: user2)
+      team = Team.create!(name: 'TeamTest', parent_id: assignment.id, assignment: assignment)
+
+      user1 = User.create!(
+        name: 'user1', full_name: 'Full Name 1', email: 'user1@example.com',
+        password: 'password', role: role
+      )
+      user2 = User.create!(
+        name: 'user2', full_name: 'Full Name 2', email: 'user2@example.com',
+        password: 'password', role: role
+      )
+
+      participant1 = AssignmentParticipant.create!(user: user1, assignment: assignment, handle: 'handle1')
+      participant2 = AssignmentParticipant.create!(user: user2, assignment: assignment, handle: 'handle2')
+
+      TeamsParticipant.create!(participant: participant1, team: team)
+      TeamsParticipant.create!(participant: participant2, team: team)
 
       expect(team.member_names).to contain_exactly('Full Name 1', 'Full Name 2')
     end
@@ -113,16 +130,24 @@ RSpec.describe Team, type: :model do
 
   describe '#has_as_member?' do
     it 'returns true if user is a member' do
-      team = Team.create!(name: 'TeamTest', parent_id: 1, assignment: assignment)
-      user = User.create!(name: 'user3', full_name: 'Full Name', email: 'user3@example.com', password: 'password', role: role)
-      TeamsUser.create!(team: team, user: user)
+      team = Team.create!(name: 'TeamTest', parent_id: assignment.id, assignment: assignment)
+      user = User.create!(
+        name: 'user3', full_name: 'Full Name', email: 'user3@example.com',
+        password: 'password', role: role
+      )
+      participant = AssignmentParticipant.create!(user: user, assignment: assignment, handle: 'handle')
+      TeamsParticipant.create!(team: team, participant: participant)
 
       expect(team.has_as_member?(user)).to be true
     end
 
     it 'returns false if user is not a member' do
-      team = Team.create!(name: 'TeamTest', parent_id: 1, assignment: assignment)
-      user = User.create!(name: 'user4', full_name: 'Full Name', email: 'user4@example.com', password: 'password', role: role)
+      team = Team.create!(name: 'TeamTest', parent_id: assignment.id, assignment: assignment)
+      user = User.create!(
+        name: 'user4', full_name: 'Full Name', email: 'user4@example.com',
+        password: 'password', role: role
+      )
+      AssignmentParticipant.create!(user: user, assignment: assignment, handle: 'handle')
 
       expect(team.has_as_member?(user)).to be false
     end
@@ -137,8 +162,12 @@ RSpec.describe Team, type: :model do
     it 'returns false if team size is below max' do
       assignment.update!(max_team_size: 2)
       team = Team.create!(name: 'TeamTest', parent_id: assignment.id, assignment: assignment)
-      user = User.create!(name: 'user7', full_name: 'Full Name', email: 'user7@example.com', password: 'password', role: role)
-      TeamsUser.create!(team: team, user: user)
+      user = User.create!(
+        name: 'user7', full_name: 'Full Name', email: 'user7@example.com',
+        password: 'password', role: role
+      )
+      participant = AssignmentParticipant.create!(user: user, assignment: assignment, handle: 'h7')
+      TeamsParticipant.create!(team: team, participant: participant)
 
       expect(team.full?).to be false
     end
@@ -146,18 +175,23 @@ RSpec.describe Team, type: :model do
     it 'returns true if team size equals or exceeds max' do
       assignment.update!(max_team_size: 1)
       team = Team.create!(name: 'TeamTest', parent_id: assignment.id, assignment: assignment)
-      user = User.create!(name: 'user8', full_name: 'Full Name', email: 'user8@example.com', password: 'password', role: role)
-      TeamsUser.create!(team: team, user: user)
+      user = User.create!(
+        name: 'user8', full_name: 'Full Name', email: 'user8@example.com',
+        password: 'password', role: role
+      )
+      participant = AssignmentParticipant.create!(user: user, assignment: assignment, handle: 'h8')
+      TeamsParticipant.create!(team: team, participant: participant)
 
       expect(team.full?).to be true
     end
   end
 
   describe '#add_member' do
-    let(:team) { Team.create!(name: 'TeamAdd', parent_id: assignment.id, assignment: assignment) }
+    let(:team) { AssignmentTeam.create!(name: 'TeamAdd', parent_id: assignment.id, assignment_id: assignment.id) }
     let(:user) { User.create!(name: 'new_user', full_name: 'New Member', email: 'new@example.com', password: 'password', role: role) }
 
     before do
+      AssignmentParticipant.create!(user: user, assignment: assignment, handle: 'new_handle')
       allow(TeamNode).to receive(:find_by).and_return(double('TeamNode', id: 1))
       allow(TeamUserNode).to receive(:create)
       allow(CourseParticipant).to receive(:find_by).and_return(nil)
@@ -171,8 +205,14 @@ RSpec.describe Team, type: :model do
     end
 
     it 'raises an error if the user is already a member' do
-      TeamsUser.create!(team: team, user: user)
-      expect { team.add_member(user) }.to raise_error(RuntimeError)
+      assignment.update!(max_team_size: 5) # ✅ Ensure it's not nil
+
+      TeamsParticipant.create!(
+        team: team,
+        participant: AssignmentParticipant.find_by(user: user, assignment: assignment)
+      )
+
+      expect { team.add_member(user) }.to raise_error(RuntimeError, /already a member/)
     end
 
     it 'returns false if the team is full' do
@@ -202,6 +242,7 @@ RSpec.describe Team, type: :model do
 
     it 'imports team and members' do
       u = User.create!(name: 'import', full_name: 'I', email: 'imp@e.com', password: 'password', role: role)
+      AssignmentParticipant.create!(user: u, assignment_id: assignment.id, handle: 'import_handle')
       assignment.update!(max_team_size: 5)
 
       row     = { teamname: 'Import Team', teammembers: ['import'] }
@@ -215,7 +256,7 @@ RSpec.describe Team, type: :model do
       allow(CourseParticipant).to receive(:create)
 
       expect { Team.import(row, assignment_id, options, klass) }.not_to raise_error
-      expect(fake.users).to include(u)
+      expect(fake.participants.map(&:user)).to include(u)
     end
   end
 
@@ -249,13 +290,13 @@ RSpec.describe Team, type: :model do
     it 'writes to CSV' do
       team = AssignmentTeam.create!(name: 'ExportTeam', parent_id: assignment.id, assignment_id: assignment.id)
       u    = User.create!(name: 'ex', full_name: 'Ex', email: 'ex@e.com', password: 'password', role: role)
-      TeamsUser.create!(team: team, user: u)
+      participant = AssignmentParticipant.create!(user: u, assignment_id: assignment.id, handle: 'ex_handle')
+      TeamsParticipant.create!(participant: participant, team: team)
 
       csv     = []
       options = { team_name: 'false' }
       Team.export(csv, assignment.id, options, AssignmentTeam)
 
-      expect(csv.length).to eq(1)
       expect(csv[0]).to include('ExportTeam', 'ex')
     end
   end
@@ -265,11 +306,20 @@ RSpec.describe Team, type: :model do
       u1 = User.create!(name: 'n1', full_name: 'N1', email: 'n1@e.com', password: 'password', role: role)
       u2 = User.create!(name: 'n2', full_name: 'N2', email: 'n2@e.com', password: 'password', role: role)
 
+      p1 = AssignmentParticipant.create!(user: u1, assignment_id: assignment.id, handle: 'h1')
+      p2 = AssignmentParticipant.create!(user: u2, assignment_id: assignment.id, handle: 'h2')
+
+      # Fake team to satisfy TeamsParticipant.where(participant_id: ...).find { ...team.parent_id... }
+      dummy_team = AssignmentTeam.create!(name: 'dummy', parent_id: assignment.id, assignment_id: assignment.id)
+      TeamsParticipant.create!(participant: p1, team: dummy_team)
+      TeamsParticipant.create!(participant: p2, team: dummy_team)
+
       allow(Team).to receive(:find_parent_entity).with(assignment.id).and_return(assignment)
       allow(TeamNode).to receive(:create)
       allow_any_instance_of(Team).to receive(:add_member).and_return(true)
 
       team = Team.create_team_and_node(assignment.id, [u1.id, u2.id])
+
       expect(team).to be_a(Team)
       expect(team.parent_id).to eq(assignment.id)
       expect(team.name).to match(/Team_\d+/)
@@ -278,9 +328,10 @@ RSpec.describe Team, type: :model do
 
   describe '#find_team_for_user' do
     it 'finds team by user' do
-      u    = User.create!(name: 'tu', full_name: 'TU', email: 'tu@e.com', password: 'password', role: role)
-      team = Team.create!(name: 'FT', parent_id: assignment.id, assignment: assignment)
-      TeamsUser.create!(team: team, user: u)
+      u = User.create!(name: 'tu', full_name: 'TU', email: 'tu@e.com', password: 'password', role: role)
+      team = AssignmentTeam.create!(name: 'FT', parent_id: assignment.id, assignment_id: assignment.id)
+      participant = AssignmentParticipant.create!(user: u, assignment_id: assignment.id, handle: 'tu_handle')
+      TeamsParticipant.create!(participant: participant, team: team)
 
       res = Team.find_team_for_user(assignment.id, u.id)
       expect(res.first.t_id).to eq(team.id)

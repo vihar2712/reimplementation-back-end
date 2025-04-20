@@ -33,7 +33,7 @@ RSpec.describe SignedUpTeam, type: :model do
     end
 
     let(:team) do
-      Team.create!(
+      AssignmentTeam.create!(
         name: 'Team A',
         parent_id:     assignment.id,
         assignment_id: assignment.id
@@ -53,32 +53,40 @@ RSpec.describe SignedUpTeam, type: :model do
     end
 
     before do
-      @signed_up_team = SignedUpTeam.create!(
+      # sign up the team
+      SignedUpTeam.create!(
         sign_up_topic: topic,
         team:          team,
         is_waitlisted: false
       )
-      TeamsUser.create!(team: team, user: user)
+
+      # add a participant to the team
+      participant = AssignmentParticipant.create!(
+        user: user,
+        assignment: assignment,
+        handle: 'handle'
+      )
+      TeamsParticipant.create!(team: team, participant: participant)
     end
 
     it 'returns participants with correct team and user names filled in' do
       participants = SignedUpTeam.find_team_participants(assignment.id)
+      expect(participants.size).to eq(1)
 
-      expect(participants.length).to eq(1)
-      participant = participants.first
+      result = participants.first
 
-      expect(participant.team_id).to eq(team.id)
-      expect(participant.topic_id).to eq(topic.id)
-      expect(participant.name).to include(team.name)
-      expect(participant.name).to include(user.name)
-      expect(participant.team_name_placeholder).to eq(team.name)
-      expect(participant.user_name_placeholder).to include(user.name)
+      expect(result.team_id).to eq(team.id)
+      expect(result.topic_id).to eq(topic.id)
+      # name should be something like "[Team A] student1 "
+      expect(result.name).to include(team.name)
+      expect(result.name).to include(user.name)
+      expect(result.team_name_placeholder).to eq(team.name)
+      expect(result.user_name_placeholder).to eq(user.name)
     end
 
     it 'returns an empty array if there are no matching participants' do
       SignedUpTeam.destroy_all
-      result = SignedUpTeam.find_team_participants(assignment.id)
-      expect(result).to be_empty
+      expect(SignedUpTeam.find_team_participants(assignment.id)).to be_empty
     end
   end
 end

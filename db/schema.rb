@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2025_04_15_013415) do
+ActiveRecord::Schema[8.0].define(version: 2025_04_20_211031) do
   create_table "account_requests", charset: "utf8mb4", collation: "utf8mb4_0900_ai_ci", force: :cascade do |t|
     t.string "username"
     t.string "full_name"
@@ -34,6 +34,16 @@ ActiveRecord::Schema[8.0].define(version: 2025_04_15_013415) do
     t.datetime "updated_at", null: false
     t.index ["question_id"], name: "fk_score_questions"
     t.index ["response_id"], name: "fk_score_response"
+  end
+
+  create_table "assignment_participants", charset: "utf8mb4", collation: "utf8mb4_0900_ai_ci", force: :cascade do |t|
+    t.bigint "user_id", null: false
+    t.bigint "assignment_id", null: false
+    t.string "handle"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["assignment_id"], name: "index_assignment_participants_on_assignment_id"
+    t.index ["user_id"], name: "index_assignment_participants_on_user_id"
   end
 
   create_table "assignment_questionnaires", charset: "utf8mb4", collation: "utf8mb4_0900_ai_ci", force: :cascade do |t|
@@ -448,6 +458,8 @@ ActiveRecord::Schema[8.0].define(version: 2025_04_15_013415) do
 
   add_foreign_key "account_requests", "institutions"
   add_foreign_key "account_requests", "roles"
+  add_foreign_key "assignment_participants", "assignments"
+  add_foreign_key "assignment_participants", "users"
   add_foreign_key "assignments", "courses"
   add_foreign_key "assignments", "users", column: "instructor_id"
   add_foreign_key "courses", "institutions"

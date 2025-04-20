@@ -1,9 +1,9 @@
-class TeamsParticipant < ApplicationRecord
-  belongs_to :participant
-  belongs_to :team
+  class TeamsParticipant < ApplicationRecord
+    belongs_to :participant
+    belongs_to :team
 
-  validates :participant_id, uniqueness: { scope: :team_id }
-  validates :user_id, presence: true
+    validates :participant_id, uniqueness: { scope: :team_id }
+    validates :user_id, presence: true
 
-  delegate :user_id, to: :participant
-end
+    delegate :user_id, to: :participant
+  end
