@@ -385,33 +385,51 @@ RSpec.describe Participant, type: :model do
     end
   end
 
-  describe '.export_options' do
-    let(:export_options) { described_class.export_options }
-
-    it 'returns a hash with expected keys' do
-      expected_keys = %w[personal_details role parent email_options handle]
-      expect(export_options.keys).to match_array(expected_keys)
+  describe '.export_fields' do
+    let(:all_true_options) do
+      {
+        'personal_details' => 'true',
+        'role' => 'true',
+        'parent' => 'true',
+        'email_options' => 'true',
+        'handle' => 'true'
+      }
     end
 
-    it 'provides display text and fields for each option' do
-      export_options.each do |key, value|
-        expect(value).to be_a(Hash)
-        expect(value).to have_key('display')
-        expect(value).to have_key('fields')
-        expect(value['fields']).to be_an(Array)
-        expect(value['display']).to be_a(String)
-      end
+    it 'returns all fields when all options are set to true' do
+      expected_fields = [
+        'name', 'full name', 'email',
+        'role',
+        'parent',
+        'email on submission', 'email on review', 'email on metareview',
+        'handle'
+      ]
+      fields = described_class.export_fields(all_true_options)
+      expect(fields).to match_array(expected_fields)
     end
 
-    it 'includes the correct fields for personal_details' do
-      expect(export_options['personal_details']['fields']).to match_array(['name', 'full name', 'email'])
+    it 'returns only selected fields when some options are true' do
+      selected_options = {
+        'personal_details' => 'true',
+        'email_options' => 'true'
+      }
+      expected_fields = [
+        'name', 'full name', 'email',
+        'email on submission', 'email on review', 'email on metareview'
+      ]
+      fields = described_class.export_fields(selected_options)
+      expect(fields).to match_array(expected_fields)
     end
 
-    it 'includes the correct fields for email_options' do
-      expect(export_options['email_options']['fields']).to match_array(
-                                                             ['email on submission', 'email on review', 'email on metareview']
-                                                           )
+    it 'returns an empty array when all options are false' do
+      options = {
+        'personal_details' => 'false',
+        'role' => 'false',
+        'parent' => 'false',
+        'email_options' => 'false',
+        'handle' => 'false'
+      }
+      expect(described_class.export_fields(options)).to eq([])
     end
   end
-
 end
