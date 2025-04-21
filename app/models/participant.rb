@@ -72,29 +72,14 @@ class Participant < ApplicationRecord
     end
   end
 
-  def self.export_options
-    {
-      'personal_details' => {
-        'display' => 'Include personal details',
-        'fields' => ['name', 'full name', 'email']
-      },
-      'role' => {
-        'display' => 'Include role',
-        'fields' => ['role']
-      },
-      'parent' => {
-        'display' => 'Include parent information',
-        'fields' => ['parent']
-      },
-      'email_options' => {
-        'display' => 'Include email preferences',
-        'fields' => ['email on submission', 'email on review', 'email on metareview']
-      },
-      'handle' => {
-        'display' => 'Include handle',
-        'fields' => ['handle']
-      }
-    }
+  def self.export_fields(options)
+    fields = []
+    fields += ['name', 'full name', 'email'] if options['personal_details'] == 'true'
+    fields << 'role' if options['role'] == 'true'
+    fields << 'parent' if options['parent'] == 'true'
+    fields += ['email on submission', 'email on review', 'email on metareview'] if options['email_options'] == 'true'
+    fields << 'handle' if options['handle'] == 'true'
+    fields
   end
 
 
