@@ -36,9 +36,20 @@ RSpec.describe AssignmentTeam, type: :model do
     AssignmentTeam.create!(name: 'Existing Team', parent_id: assignment.id, assignment_id: assignment.id, directory_num: 5)
   end
 
+  let!(:participant) do
+    AssignmentParticipant.create!(
+      user: user,
+      assignment: assignment,
+      handle: 'member_handle'
+    )
+  end
+
+  let!(:teams_participant) do
+    TeamsParticipant.create!(participant: participant, team: team)
+  end
+
   before do
     $redis = double('Redis', get: '')
-    TeamsUser.create!(user: user, team: team)
   end
 
   describe '#current_user_id' do
@@ -151,10 +162,11 @@ RSpec.describe AssignmentTeam, type: :model do
 
   describe '#delete' do
     it 'removes signed up team entries and deletes the team' do
-      topic = SignUpTopic.create!(topic_identifier: 'T1', topic_name: 'Topic 1', assignment: assignment)
-      SignedUpTeam.create!(team_id: team.id, sign_up_topic_id: topic.id, is_waitlisted: false)
+      team = AssignmentTeam.create!(name: 'To Delete', parent_id: assignment.id, assignment_id: assignment.id)
 
-      expect { team.delete }.to change { AssignmentTeam.exists?(team.id) }.from(true).to(false)
+      expect {
+        AssignmentTeam.remove_team_by_id(team.id)
+      }.to change { AssignmentTeam.exists?(team.id) }.from(true).to(false)
     end
   end
 
@@ -224,9 +236,9 @@ RSpec.describe AssignmentTeam, type: :model do
       new_team = AssignmentTeam.create!(name: 'Copied Team', parent_id: assignment.id, assignment_id: assignment.id)
       expect {
         team.copy(new_team)
-      }.to change { TeamsUser.where(team_id: new_team.id).count }.by(1)
-  
-      expect(new_team.users.first.id).to eq(user.id)
+      }.to change { TeamsParticipant.where(team_id: new_team.id).count }.by(1)
+
+      expect(new_team.participants.map(&:user_id)).to include(user.id)
     end
   end
   
@@ -333,13 +345,16 @@ RSpec.describe AssignmentTeam, type: :model do
   describe '#team' do
     it 'returns the team for a given participant' do
       participant = AssignmentParticipant.create!(user: user, assignment_id: assignment.id, handle: 'handle')
+      team = AssignmentTeam.create!(name: 'Team for Participant', assignment_id: assignment.id, parent_id: assignment.id)
+      TeamsParticipant.create!(participant: participant, team: team)
+
       expect(AssignmentTeam.team(participant)).to eq(team)
     end
-  
+
     it 'returns nil if participant is nil' do
       expect(AssignmentTeam.team(nil)).to be_nil
     end
-  
+
     it 'returns nil if no matching team found' do
       other_assignment = Assignment.create!(title: 'Assignment 2', instructor: instructor, directory_path: 'path2')
       participant = AssignmentParticipant.create!(user: user, assignment_id: other_assignment.id, handle: 'handle')
@@ -438,7 +453,6 @@ RSpec.describe AssignmentTeam, type: :model do
 
   describe '#get_logged_in_reviewer_id' do
     it 'returns participant ID if user is part of the team' do
-      participant = AssignmentParticipant.create!(user: user, assignment_id: assignment.id, handle: 'handle')
       expect(team.get_logged_in_reviewer_id(user.id)).to eq(participant.id)
     end
 

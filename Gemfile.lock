@@ -167,6 +167,8 @@ GEM
       racc (~> 1.4)
     nokogiri (1.15.2-x64-mingw-ucrt)
       racc (~> 1.4)
+    nokogiri (1.15.2-x86_64-darwin)
+      racc (~> 1.4)
     nokogiri (1.15.2-x86_64-linux)
       racc (~> 1.4)
     paper_trail (16.0.0)
@@ -318,6 +320,7 @@ PLATFORMS
   arm64-darwin-22
   arm64-darwin-23
   x64-mingw-ucrt
+  x86_64-darwin-23
   x86_64-linux
 
 DEPENDENCIES

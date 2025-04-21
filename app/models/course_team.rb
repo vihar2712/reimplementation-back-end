@@ -8,10 +8,10 @@ class CourseTeam < Team
 
   # Copy members from self to a new team.
   def copy_members(new_team)
-    members = TeamsUser.where(team_id: id)
+    members = TeamsParticipant.where(team_id: id)
     members.each do |member|
-      t_user = TeamsUser.create!(team_id: new_team.id, user_id: member.user_id)
-      # For CourseTeam, the parent is a Course
+      # Copy the same participant into the new team
+      t_user = TeamsParticipant.create!(team_id: new_team.id, participant: member.participant)
       parent = Course.find(parent_id)
       TeamUserNode.create!(parent_id: parent.id, node_object_id: t_user.id)
     end
@@ -31,6 +31,11 @@ class CourseTeam < Team
   def participant_class
     CourseParticipant
   end
+
+  def participants
+    TeamsParticipant.where(team_id: id).map(&:participant)
+  end
+
 
   # Override Team.import() to Import a CourseTeam from csv
   def self.import(row, course_id, options)
