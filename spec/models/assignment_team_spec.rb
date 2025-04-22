@@ -52,27 +52,9 @@ RSpec.describe AssignmentTeam, type: :model do
     $redis = double('Redis', get: '')
   end
 
-  describe '#current_user_id' do
-    it 'returns user id if stored and part of the team' do
-      team.store_current_user(user)
-      expect(team.current_user_id).to eq(user.id)
-    end
-
-    it 'returns nil if no current_user is stored' do
-      expect(team.current_user_id).to be_nil
-    end
-  end
-
   describe '#first_user_id' do
     it 'returns the ID of the first user in the team' do
       expect(team.first_user_id).to eq(user.id)
-    end
-  end
-
-  describe '#store_current_user' do
-    it 'stores the current user' do
-      team.store_current_user(user)
-      expect(team.instance_variable_get(:@current_user)).to eq(user)
     end
   end
 

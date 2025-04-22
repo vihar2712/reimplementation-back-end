@@ -1,5 +1,6 @@
 class MentoredTeam < AssignmentTeam
-  # Adds a member to the team and assigns a mentor (if applicable)
+  # Adds a participant to the team and automatically assigns a mentor
+  # - Only assigns a mentor if the participant was successfully added
   def add_member(participant)
     can_add_member = super(participant.user)
     if can_add_member
@@ -8,7 +9,9 @@ class MentoredTeam < AssignmentTeam
     can_add_member
   end
 
-  # Imports team members from the provided row hash and assigns mentors if necessary
+  # Imports a list of users from the provided hash and adds them as team members
+  # - Only adds users who are found and not already in the team
+  # - Automatically assigns mentors to eligible teams
   def import_team_members(row_hash)
     row_hash[:teammembers].each do |teammate|
       if teammate.to_s.strip.empty?
@@ -26,15 +29,16 @@ class MentoredTeam < AssignmentTeam
     end
   end
 
-  # Overrides size to exclude the mentor
+  # Returns the number of non-mentor participants in the team
+  # - Overrides base `size` method to exclude mentors
   def size
     participants.reject(&:can_mentor).size
   end
 
   private
 
-  # Determines if a mentor should be auto-assigned to the team,
-  # and if so, selects and assigns the mentor, then notifies users.
+  # Determines if a mentor should be auto-assigned based on assignment and team conditions
+  # - Assigns the mentor if all conditions are met and sends notification emails
   def assign_mentor(assignment_id, team_id)
     assignment = Assignment.find(assignment_id)
     team = Team.find(team_id)
@@ -61,36 +65,15 @@ class MentoredTeam < AssignmentTeam
     notify_mentor_of_assignment(mentor, team)
   end
 
-  # Select a mentor using the following algorithm
-  #
-  # 1) Find all assignment participants for the
-  #    assignment with id [assignment_id] whose
-  #    duty is the same as [Particpant#DUTY_MENTOR].
-  # 2) Count the number of teams those participants
-  #    are a part of, acting as a proxy for the
-  #    number of teams they mentor.
-  # 3) Return the mentor with the fewest number of
-  #    teams they're currently mentoring.
-  #
-  # This method's runtime is O(n lg n) due to the call to
-  # Hash#sort_by. This assertion assumes that the
-  # database management system is capable of fetching the
-  # required rows at least as quickly.
-  #
-  # Implementation detail: Any tie between the top 2
-  # mentors is decided by the Hash#sort_by algorithm.
-  #
-  # @return The id of the mentor with the fewest teams
-  #   they are assigned to. Returns `nil` if there are
-  #   no participants with mentor duty for [assignment_id].
+  # Selects the most eligible mentor based on the fewest number of teams they are already mentoring
+  # - Returns the mentor user object or nil if no mentors available
   def select_mentor(assignment_id)
     mentor_user_id, = zip_mentors_with_team_count(assignment_id).first
     User.where(id: mentor_user_id).first
   end
 
-  # Produces a hash mapping mentor's user_ids to the aggregated
-  # number of teams they're part of, which acts as a proxy for
-  # the number of teams they're mentoring.
+  # Returns a sorted list of [mentor_user_id, team_count] pairs
+  # - Helps identify mentors with the lightest current load
   def zip_mentors_with_team_count(assignment_id)
     mentor_ids = mentors_for_assignment(assignment_id).pluck(:user_id)
     return [] if mentor_ids.empty?
@@ -106,17 +89,12 @@ class MentoredTeam < AssignmentTeam
     team_counts.sort_by { |_, v| v }
   end
 
-  # Select all the participants who's duty in the participant
-  # table is [DUTY_MENTOR], and who are a participant of
-  # [assignment_id].
-  #
-  # @see participant.rb for the value of DUTY_MENTOR
+  # Retrieves all participants in the assignment who are eligible to act as mentors
   def mentors_for_assignment(assignment_id)
     Participant.where(parent_id: assignment_id, can_mentor: true)
   end
 
-  # Sends an email notification to all team members informing them that a mentor has been assigned.
-  # The message includes the mentor’s name and email, the assignment name, and a list of current members.
+  # Sends an email to all team members to notify them of their newly assigned mentor
   def notify_team_of_mentor_assignment(mentor, team)
     members = team.users
     emails = members.map(&:email)
@@ -129,8 +107,7 @@ class MentoredTeam < AssignmentTeam
                            body: message).deliver_now
   end
 
-  # Sends an email notification to the assigned mentor with details about their team.
-  # Includes the assignment name and a list of current team members.
+  # Sends an email to the mentor informing them of their new assignment and team members
   def notify_mentor_of_assignment(mentor, team)
     members_info = team.users.map { |mem| "#{mem.fullname} - #{mem.email}" }.join('<br>')
     assignment_name = Assignment.find(team.parent_id).name

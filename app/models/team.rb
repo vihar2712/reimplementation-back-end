@@ -29,20 +29,20 @@ class Team < ApplicationRecord
     Object.const_get(self.name.gsub('Team', '')).find(id)
   end
 
-  # Get the participants of the given team
+  # Returns all participants associated with the team
   def participants
     teams_participants.includes(:participant).map(&:participant)
   end
   alias get_participants participants
 
-  # Copies content of one object to another
+  # Copies content from each object in `source` to the `destination` object
   def self.copy_content(source, destination)
     source.each do |each_element|
       each_element.copy(destination.id)
     end
   end
 
-  # Delete the given team
+  # Deletes the team and its associated team participants and team node
   def delete
     TeamsParticipant.where(team_id: id).find_each(&:destroy)
     node = TeamNode.find_by(node_object_id: id)
@@ -50,31 +50,31 @@ class Team < ApplicationRecord
     destroy
   end
 
-  # Get the node type of the tree structure
+  # Returns the node type associated with the team (used in tree structure)
   def node_type
     'TeamNode'
   end
 
-  # Get the names of the users
+  # Returns the full names of all users in the team
   def member_names
     participants.map { |participant| participant.user.fullname }
   end
 
-  # Check if the user exists
+  # Returns true if the given user is a member of the team; otherwise false
   def has_as_member?(user)
     participants.any? { |p| p.user_id == user.id }
   end
 
-  # Check if the current team is full?
+  # Returns true if the team has reached the maximum allowed team size; otherwise false
   def full?
-    return false if parent_id.nil? # course team, does not max_team_size
+    return false if parent_id.nil?
 
     max_team_members = Assignment.find(parent_id).max_team_size
     curr_team_size = size
     curr_team_size >= max_team_members
   end
 
-  # Add member to the team
+  # Adds a user to the team after ensuring they are not already in it and the team is not full
   def add_member(user)
     raise "The user #{user.name} is already a member of the team #{name}" if has_as_member?(user)
     return false if full?
@@ -88,9 +88,9 @@ class Team < ApplicationRecord
       raise "The user #{user.name} is already a member of the team #{name}"
     end
 
-    t_user = TeamsParticipant.create!(participant: participant, team_id: id)
+    t_participant = TeamsParticipant.create!(participant: participant, team_id: id)
     parent_node = TeamNode.find_by(node_object_id: id)
-    TeamUserNode.create!(parent_id: parent_node.id, node_object_id: t_user.id)
+    TeamUserNode.create!(parent_id: parent_node.id, node_object_id: t_participant.id)
 
     unless CourseParticipant.find_by(assignment_id: parent_id, user_id: user.id)
       CourseParticipant.create(assignment_id: parent_id, user_id: user.id, permission_granted: user.master_permission_granted)
@@ -99,6 +99,7 @@ class Team < ApplicationRecord
     true
   end
 
+  # Creates and returns a new participant for the team if one does not already exist
   def add_participant(user)
     foreign_key = participant_class == AssignmentParticipant ? :assignment_id : :parent_id
 
@@ -113,10 +114,14 @@ class Team < ApplicationRecord
     )
   end
 
+  # Returns the number of participants in the team
   def size
     participants.size
   end
 
+  # Creates random teams from unassigned users and fills underpopulated teams
+  # - Ensures all teams have at least `min_team_size` members
+  # - Creates new teams if users remain unassigned
   def self.create_random_teams(parent, team_type, min_team_size)
     participant_model = "#{parent.class}Participant".constantize
     participants = participant_model.where(assignment_id: parent.id, can_mentor: [false, nil])
@@ -142,6 +147,8 @@ class Team < ApplicationRecord
     team_from_users(min_team_size, parent, team_type, users) unless users.empty?
   end
 
+  # Creates a specified number of new teams and assigns users in chunks of `min_team_size`
+  # - Used by `create_random_teams` to handle leftover users
   def self.team_from_users(min_team_size, parent, team_type, users)
     num_of_teams = users.length.fdiv(min_team_size).ceil
     next_team_member_index = 0
@@ -158,6 +165,8 @@ class Team < ApplicationRecord
     end
   end
 
+  # Generates a new team name with an incremented suffix (e.g., "Team_1", "Team_2", etc.)
+  # - Ensures no name collisions for the given prefix
   def self.generate_team_name(prefix = '')
     prefix = 'Team' if prefix.blank?
     last_team = Team.where('name LIKE ?', "#{prefix}_%")
@@ -167,6 +176,8 @@ class Team < ApplicationRecord
     "#{prefix}_#{counter}"
   end
 
+  # Returns the team's name
+  # - Returns an anonymized version if the user is in anonymized view mode
   def name(ip_address = nil)
     if User.anonymized_view?(ip_address)
       return "Anonymized_Team_\#{self[:id]}"
@@ -175,6 +186,8 @@ class Team < ApplicationRecord
     end
   end
 
+  # Imports and adds users to the team based on a hash of team members
+  # - Raises an error if any user in the list is not found
   def import_team_members(row_hash)
     row_hash[:teammembers].each_with_index do |teammate, _index|
       user = User.find_by(name: teammate.to_s)
@@ -186,6 +199,9 @@ class Team < ApplicationRecord
     end
   end
 
+  # Imports a team from a row of CSV data
+  # - Handles duplicate team names based on `options[:handle_dups]`
+  # - Creates new teams if needed and adds members
   def self.import(row_hash, id, options, teamtype)
     raise ArgumentError, 'Not enough fields on this line.' if row_hash.empty? || (row_hash[:teammembers].empty? && (options[:has_teamname] == 'true_first' || options[:has_teamname] == 'true_last'))
     if options[:has_teamname] == 'true_first' || options[:has_teamname] == 'true_last'
@@ -208,6 +224,9 @@ class Team < ApplicationRecord
     team.import_team_members(row_hash) unless team_exists && options[:handle_dups] == 'ignore'
   end
 
+  # Handles team name conflicts during import
+  # - Based on the duplication strategy (ignore, rename, replace), takes appropriate action
+  # - Returns a valid name to use or nil if ignored
   def self.handle_duplicate(team, name, id, handle_dups, teamtype)
     return name if team.nil?
     return nil if handle_dups == 'ignore'
@@ -227,6 +246,8 @@ class Team < ApplicationRecord
     end
   end
 
+  # Exports all teams and their members for a given parent (assignment/course)
+  # - Team names and member names are output to CSV format
   def self.export(csv, parent_id, options, teamtype)
     teams = teamtype.where(parent_id: parent_id)
     teams.each do |team|
@@ -243,6 +264,9 @@ class Team < ApplicationRecord
     csv
   end
 
+  # Creates a new team and its corresponding TeamNode
+  # - Optionally adds a list of users to the newly created team
+  # - Removes any previous team associations for these users under the same parent
   def self.create_team_and_node(parent_id, user_ids = [])
     parent = find_parent_entity parent_id
     team_name = Team.generate_team_name(parent.name)
@@ -252,9 +276,9 @@ class Team < ApplicationRecord
     user_ids.each do |user_id|
       participant = Participant.find_by(user_id: user_id, assignment_id: parent_id)
       if participant
-        team_user = TeamsParticipant.where(participant_id: participant.id)
+        team_participant = TeamsParticipant.where(participant_id: participant.id)
                                     .find { |tp| tp.team.parent_id == parent_id }
-        team_user&.destroy
+        team_participant&.destroy
         team.add_member(User.find(user_id))
       end
     end unless user_ids.empty?
@@ -262,6 +286,8 @@ class Team < ApplicationRecord
     team
   end
 
+  # Finds the team a user is part of for a given assignment
+  # - Returns a relation selecting only the team ID
   def self.find_team_for_user(assignment_id, user_id)
     TeamsParticipant
       .joins(:team, :participant)
@@ -269,12 +295,15 @@ class Team < ApplicationRecord
       .select('teams.id as t_id')
   end
 
+  # Returns true if the given participant is part of the team; otherwise false
   def has_participant?(participant)
     participants.include?(participant)
   end
 
   private
 
+  # Validates that the team belongs to either an assignment or a course
+  # - Raises errors if neither or both are set to ensure proper team context
   def assignment_or_course_presence
     has_assignment = assignment_id.present? || parent_id.present?
     has_course     = course_id.present?
@@ -288,6 +317,8 @@ class Team < ApplicationRecord
     end
   end
 
+  # Checks if a participant is eligible to join the team
+  # - Ensures team is not full and participant belongs to the same assignment or course
   def can_participant_join_team?(participant)
     return false if full?
 
