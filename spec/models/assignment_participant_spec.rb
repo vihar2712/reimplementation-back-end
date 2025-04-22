@@ -3,7 +3,13 @@
 require 'rails_helper'
 
 RSpec.describe AssignmentParticipant, type: :model do
+  # $redis = global variable
+  before(:each) do
+    $redis = double('Redis', get: nil)
+  end
+
   let(:student_role) { Role.create!(name: 'Student') }
+
   let(:user) do
     User.create!(
       name: 'student1',
@@ -32,25 +38,57 @@ RSpec.describe AssignmentParticipant, type: :model do
 
   describe '#set_handle' do
     it 'uses user name if user handle is nil or blank' do
-      user.update!(handle: nil)
+      user.update_column(:handle, nil)
       participant.update_column(:handle, nil)
       participant.set_handle
       expect(participant.handle).to eq(user.name)
     end
 
     it 'uses user handle if it is unique' do
-      user.update!(handle: 'unique_handle')
+      user.update_column(:handle, 'unique_handle')
       participant.update_column(:handle, nil)
       participant.set_handle
       expect(participant.handle).to eq('unique_handle')
     end
 
     it 'falls back to user name if handle already exists in assignment' do
-      user.update!(handle: 'duplicate_handle')
+      user.update_column(:handle, 'duplicate_handle')
       AssignmentParticipant.create!(user: user, assignment: assignment, handle: 'duplicate_handle')
       participant.update_column(:handle, nil)
       participant.set_handle
       expect(participant.handle).to eq(user.name)
+    end
+  end
+
+  describe '#reviewers' do
+    it 'returns all the participants in this assignment who have reviewed the team where this participant belongs' do
+      team = AssignmentTeam.create!(name: 'Team1', assignment: assignment)
+      allow(participant).to receive(:team).and_return(team)
+
+      response_map = instance_double('ReviewResponseMap', reviewer_id: participant.id)
+      allow(ReviewResponseMap).to receive(:where).with(reviewee_id: team.id).and_return([response_map])
+      allow(AssignmentParticipant).to receive(:find).with(participant.id).and_return(participant)
+
+      expect(participant.reviewers.map(&:id)).to include(participant.id)
+    end
+  end
+
+
+  describe '#copy_to_course' do
+    it 'creates a new CourseParticipant if none exists' do
+      institution = Institution.create!(name: 'I1')
+      course = Course.create!(name: 'C1', directory_path: 'dir1', institution: institution, instructor: user)
+      expect {
+        participant.copy_to_course(course.id)
+      }.to change { CourseParticipant.count }.by(1)
+    end
+  end
+
+  describe '#verify_signature' do
+    it 'compares derived public key with user public key' do
+      key = OpenSSL::PKey::RSA.generate(2048)
+      user.update_column(:public_key, key.public_key.to_pem)
+      expect(participant.verify_signature(key.to_pem)).to eq(true)
     end
   end
 
@@ -74,32 +112,15 @@ RSpec.describe AssignmentParticipant, type: :model do
     end
   end
 
-  describe '#reviewers' do
-    it 'returns participants who reviewed the team' do
-      team = double('team', id: 999)
-      allow(participant).to receive(:team).and_return(team)
-      review_map = ReviewResponseMap.create!(reviewee_id: 999, reviewer_id: participant.id)
-      expect(participant.reviewers.map(&:id)).to include(participant.id)
-    end
-  end
-
   describe '#set_current_user' do
     it 'does nothing (stub)' do
       expect { participant.set_current_user(user) }.not_to raise_error
     end
   end
 
-  describe '#copy_to_course' do
-    it 'creates a new CourseParticipant if none exists' do
-      course = Course.create!(name: 'C1', directory_path: 'dir1', institution: Institution.create!(name: 'I1'), instructor: user)
-      expect {
-        participant.copy_to_course(course.id)
-      }.to change { CourseParticipant.count }.by(1)
-    end
-  end
-
   describe '#feedback' do
     it 'calls assessments_for on FeedbackResponseMap' do
+      stub_const('FeedbackResponseMap', Class.new)
       expect(FeedbackResponseMap).to receive(:assessments_for).with(participant)
       participant.feedback
     end
@@ -109,6 +130,7 @@ RSpec.describe AssignmentParticipant, type: :model do
     it 'calls assessments_for on ReviewResponseMap for the team' do
       fake_team = double('team')
       allow(participant).to receive(:team).and_return(fake_team)
+      stub_const('ReviewResponseMap', Class.new)
       expect(ReviewResponseMap).to receive(:assessments_for).with(fake_team)
       participant.reviews
     end
@@ -132,6 +154,7 @@ RSpec.describe AssignmentParticipant, type: :model do
 
   describe '#quizzes_taken' do
     it 'calls assessments_for on QuizResponseMap' do
+      stub_const('QuizResponseMap', Class.new)
       expect(QuizResponseMap).to receive(:assessments_for).with(participant)
       participant.quizzes_taken
     end
@@ -139,6 +162,7 @@ RSpec.describe AssignmentParticipant, type: :model do
 
   describe '#metareviews' do
     it 'calls assessments_for on MetareviewResponseMap' do
+      stub_const('MetareviewResponseMap', Class.new)
       expect(MetareviewResponseMap).to receive(:assessments_for).with(participant)
       participant.metareviews
     end
@@ -146,6 +170,7 @@ RSpec.describe AssignmentParticipant, type: :model do
 
   describe '#teammate_reviews' do
     it 'calls assessments_for on TeammateReviewResponseMap' do
+      stub_const('TeammateReviewResponseMap', Class.new)
       expect(TeammateReviewResponseMap).to receive(:assessments_for).with(participant)
       participant.teammate_reviews
     end
@@ -153,6 +178,7 @@ RSpec.describe AssignmentParticipant, type: :model do
 
   describe '#bookmark_reviews' do
     it 'calls assessments_for on BookmarkRatingResponseMap' do
+      stub_const('BookmarkRatingResponseMap', Class.new)
       expect(BookmarkRatingResponseMap).to receive(:assessments_for).with(participant)
       participant.bookmark_reviews
     end
@@ -174,9 +200,21 @@ RSpec.describe AssignmentParticipant, type: :model do
     end
   end
 
+  describe '#review_file_path' do
+    it 'returns correct peer review path when team exists' do
+      response_map = double('ResponseMap', reviewee_id: 5, reviewed_object_id: 10)
+      allow(ResponseMap).to receive(:find).and_return(response_map)
+      allow(TeamsParticipant).to receive(:find_by).and_return(double('TeamsParticipant', user_id: 3))
+      team = double('Team', directory_num: 4)
+      allow(Participant).to receive(:find_by).and_return(double('Participant', team: team))
+      allow(assignment).to receive(:path).and_return('assignments/test')
+      expect(participant.review_file_path(1)).to eq('assignments/test/4_review/1')
+    end
+  end
+
   describe '#current_stage' do
     it 'delegates to assignment.current_stage' do
-      allow(SignedUpTeam).to receive(:topic_id).and_return(5)
+      allow(SignedUpTeam).to receive(:topic_id).with(assignment.id, user.id).and_return(5)
       expect(assignment).to receive(:current_stage).with(5)
       participant.current_stage
     end
@@ -184,7 +222,7 @@ RSpec.describe AssignmentParticipant, type: :model do
 
   describe '#stage_deadline' do
     it 'returns stage name if not Finished' do
-      allow(SignedUpTeam).to receive(:topic_id).and_return(3)
+      allow(SignedUpTeam).to receive(:topic_id).with(assignment.id, user.id).and_return(3)
       allow(assignment).to receive(:stage_deadline).with(3).and_return('In progress')
       expect(participant.stage_deadline).to eq('In progress')
     end
@@ -196,14 +234,6 @@ RSpec.describe AssignmentParticipant, type: :model do
       expect {
         participant.assign_copyright('invalid')
       }.to raise_error('Invalid key')
-    end
-  end
-
-  describe '#verify_signature' do
-    it 'compares derived public key with user public key' do
-      key = OpenSSL::PKey::RSA.generate(2048)
-      user.update!(public_key: key.public_key.to_pem)
-      expect(participant.verify_signature(key.to_pem)).to eq(true)
     end
   end
 

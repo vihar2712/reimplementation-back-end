@@ -44,8 +44,10 @@ class AssignmentParticipant < Participant
 
   # Adds this participant’s user to the given course as a CourseParticipant, if not already added.
   def copy_to_course(course_id)
-    CourseParticipant.find_or_create_by(user_id: user_id, course_id: course_id)
+    # do not assume immediate subclass of Participant, bypass inheritance path
+    ::CourseParticipant.find_or_create_by(user_id: user_id, course_id: course_id)
   end
+
 
   # Returns all feedback responses for this participant.
   def feedback
