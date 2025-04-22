@@ -19,19 +19,22 @@ class Participant < ApplicationRecord
   # Validation: require either assignment_id or course_id
   validate :parent_absent?
 
-  # Methods
+  # Returns the full name of the associated user
   def name
     user.full_name
   end
 
+  # Returns all responses submitted by this participant
   def responses
     response_maps.includes(:response).map(&:response)
   end
 
+  # Returns the username of the associated user
   def username
     user.name
   end
 
+  # Deletes the participant if no associations exist, or forces deletion if specifiedd
   def delete(force = nil)
     maps = ResponseMap.where('reviewee_id = ? or reviewer_id = ?', id, id)
 
@@ -40,6 +43,7 @@ class Participant < ApplicationRecord
     force_delete(maps)
   end
 
+  # Forcefully deletes response maps and the participant's team if necessary
   def force_delete(maps)
     maps && maps.each(&:destroy)
     if team && (team.teams_users.length == 1)
@@ -50,6 +54,7 @@ class Participant < ApplicationRecord
     destroy
   end
 
+  # Determines the role of the participant based on their permissions
   def task_role
     task = 'participant'
     task = 'mentor'    if can_mentor
@@ -59,6 +64,7 @@ class Participant < ApplicationRecord
     task
   end
 
+  # Exports participant data to a CSV file based on selected options
   def self.export(csv, parent_id, options)
     where(assignment_id: parent_id).find_each do |part|
       tcsv = []
@@ -72,6 +78,7 @@ class Participant < ApplicationRecord
     end
   end
 
+  # Returns the list of exportable fields based on selected options
   def self.export_fields(options)
     fields = []
     fields += ['name', 'full name', 'email'] if options['personal_details'] == 'true'
@@ -85,6 +92,7 @@ class Participant < ApplicationRecord
 
   private
 
+  # Validates that either an assignment or course is present, but not both
   def parent_absent?
     if assignment.blank? && course.blank?
       errors.add(:base, "Either assignment or course must be present")
