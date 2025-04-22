@@ -5,6 +5,7 @@ class CourseParticipant < Participant
   belongs_to :user
   validates :handle, presence: true
 
+  # Copies a course participant to an assignment participant.
   def copy_to_assignment(assignment_id)
     part = AssignmentParticipant.find_or_initialize_by(
       user_id: user_id,
@@ -49,6 +50,7 @@ class CourseParticipant < Participant
     end
   end
 
+  # Sets the participant's handle based on the user's handle or name.
   def set_handle
     self.handle = if user.handle.nil? || user.handle.strip.empty?
                     user.name
