@@ -18,7 +18,7 @@ class MentoredTeam < AssignmentTeam
       if user.nil?
         raise ImportError, "The user '#{teammate}' was not found. <a href='/users/new'>Create</a> this user?"
       else
-        unless TeamsUser.find_by(team_id: id, user_id: user.id)
+        unless TeamsParticipant.joins(:participant).exists?(team_id: id, participants: { user_id: user.id })
           participant = AssignmentParticipant.find_by(user_id: user.id, assignment_id: parent_id)
           add_member(participant) if participant
         end
@@ -28,7 +28,7 @@ class MentoredTeam < AssignmentTeam
 
   # Overrides size to exclude the mentor
   def size
-    [super - 1, 0].max # Ensures the size never goes negative
+    participants.reject(&:can_mentor).size
   end
 
   private
@@ -97,7 +97,7 @@ class MentoredTeam < AssignmentTeam
     team_counts = {}
     mentor_ids.each { |id| team_counts[id] = 0 }
     #E2351 removed (:team_id) after .count to fix balancing algorithm
-    team_counts.update(TeamsUser
+    team_counts.update(TeamsParticipant
     .joins(:team)
     .where(teams: { parent_id: assignment_id })
     .where(user_id: mentor_ids)

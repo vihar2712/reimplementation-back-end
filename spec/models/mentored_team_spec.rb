@@ -25,11 +25,15 @@ RSpec.describe MentoredTeam, type: :model do
     TeamNode.create!(node_object_id: team.id, parent_id: assignment.id)
   end
 
+  def participant_for(user)
+    AssignmentParticipant.find_by(user_id: user.id, assignment_id: assignment.id)
+  end
+
   describe '#add_member' do
     it 'adds a participant to the team' do
       expect {
         team.add_member(participant)
-      }.to change { TeamsUser.count }.by(1)
+      }.to change { TeamsParticipant.count }.by(1)
     end
   end
 
@@ -45,13 +49,13 @@ RSpec.describe MentoredTeam, type: :model do
     it 'adds valid users to the team' do
       expect {
         team.import_team_members(teammembers: ['Teammate'])
-      }.to change { TeamsUser.count }.by(1)
+      }.to change { TeamsParticipant.count }.by(1)
     end
 
     it 'skips empty strings' do
       expect {
         team.import_team_members(teammembers: [''])
-      }.not_to change { TeamsUser.count }
+      }.not_to change { TeamsParticipant.count }
     end
 
     it 'raises ImportError for non-existent users' do
@@ -64,18 +68,17 @@ RSpec.describe MentoredTeam, type: :model do
   describe '#size' do
     it 'returns 0 if only a mentor is present' do
       mentor_user = User.create!(name: 'Mentor', full_name: 'Mentor One', email: 'mentor@example.com', password: 'password', role: role)
-      AssignmentParticipant.create!(user: mentor_user, assignment_id: assignment.id, handle: 'mentor_handle', can_mentor: true)
-      TeamsUser.create!(user: mentor_user, team: team)
+      mentor_participant = AssignmentParticipant.create!(user: mentor_user, assignment_id: assignment.id, handle: 'mentor_handle', can_mentor: true)
+      TeamsParticipant.create!(participant: mentor_participant, team: team)
       expect(team.size).to eq(0)
     end
 
     it 'returns correct size excluding mentor' do
-      AssignmentParticipant.create!(user: student_user, assignment_id: assignment.id, handle: 'student_handle')
-      TeamsUser.create!(user: student_user, team: team)
+      TeamsParticipant.create!(participant: participant, team: team)
 
       mentor_user = User.create!(name: 'Mentor2', full_name: 'Mentor Two', email: 'mentor2@example.com', password: 'password', role: role)
-      AssignmentParticipant.create!(user: mentor_user, assignment_id: assignment.id, handle: 'mentor_handle', can_mentor: true)
-      TeamsUser.create!(user: mentor_user, team: team)
+      mentor_participant = AssignmentParticipant.create!(user: mentor_user, assignment_id: assignment.id, handle: 'mentor_handle', can_mentor: true)
+      TeamsParticipant.create!(participant: mentor_participant, team: team)
 
       expect(team.size).to eq(1)
     end

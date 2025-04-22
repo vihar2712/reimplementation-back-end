@@ -31,6 +31,8 @@ class User < ApplicationRecord
   delegate :administrator?, to: :role
   delegate :super_administrator?, to: :role
 
+  alias_attribute :fullname, :full_name
+
   def self.instantiate(record)
     case record.role
     when Role::TEACHING_ASSISTANT
@@ -61,10 +63,14 @@ class User < ApplicationRecord
   end
 
   def self.anonymized_view?(ip_address = nil)
-    anonymized_view_starter_ips = $redis.get('anonymized_view_starter_ips') || ''
-    return true if ip_address && anonymized_view_starter_ips.include?(ip_address)
+    return false if ip_address.blank?
 
-    false
+    begin
+      raw = $redis.get('anonymized_view_starter_ips') || ''
+      raw.split(',').include?(ip_address)
+    rescue => _any_error
+      false
+    end
   end
 
   # Reset the password for the user
