@@ -88,7 +88,7 @@ RSpec.describe AssignmentTeam, type: :model do
     it 'returns true if reviewed by given reviewer' do
       ReviewResponseMap.create!(
         reviewee_id: team.id,
-        reviewer_id: participant_reviewer.get_reviewer.id,
+        reviewer_id: participant_reviewer.reviewer.id,
         reviewed_object_id: assignment.id,
         team_reviewing_enabled: false
       )
@@ -103,7 +103,7 @@ RSpec.describe AssignmentTeam, type: :model do
         password: 'password',
         role: role
       )
-      reviewer = double('Participant', get_reviewer: other_user)
+      reviewer = double('Participant', reviewer: other_user)
       expect(team.reviewed_by?(reviewer)).to be false
     end
   end
