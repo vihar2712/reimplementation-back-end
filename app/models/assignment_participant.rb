@@ -8,18 +8,6 @@ class AssignmentParticipant < Participant
 
   validates :handle, presence: true
 
-  # Sets a unique handle for this participant based on their user's handle or name.
-  # Moved to Participant superclass if shared logic applies.
-  def set_handle
-    self.handle = if user.handle.nil? || user.handle.strip.empty?
-                    user.name
-                  elsif Participant.exists?(assignment_id: assignment.id, handle: user.handle)
-                    user.name
-                  else
-                    user.handle
-                  end
-    save
-  end
 
   # Returns the reviewer object. If team reviewing is enabled, return the team.
   # Otherwise, return the participant themselves.

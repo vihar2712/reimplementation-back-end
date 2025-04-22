@@ -2,7 +2,7 @@ require 'rails_helper'
 
 RSpec.describe CourseTeam, type: :model do
   before { $redis = double('Redis', get: '') }
-  
+
   let(:role) { Role.create!(name: 'Instructor') }
   let(:institution) { Institution.create!(name: 'NC State') }
   let(:instructor) do
@@ -41,14 +41,15 @@ RSpec.describe CourseTeam, type: :model do
         password: 'password',
         role: role
       )
-      TeamsUser.create!(team: old_team, user: user)
+      participant = CourseParticipant.create!(user: user, course: course, handle: 'member')
+      TeamsParticipant.create!(participant: participant, team: old_team)
 
       expect {
         old_team.copy_members(new_team)
-      }.to change { TeamsUser.count }.by(1)
-        .and change { TeamUserNode.count }.by(1)
+      }.to change { TeamsParticipant.count }.by(1)
+                                            .and change { TeamUserNode.count }.by(1)
 
-      expect(new_team.users).to include(user)
+      expect(new_team.participants.map(&:user_id)).to include(user.id)
     end
   end
 
@@ -62,7 +63,8 @@ RSpec.describe CourseTeam, type: :model do
         password: 'password',
         role: role
       )
-      TeamsUser.create!(team: old_team, user: user)
+      participant = CourseParticipant.create!(user: user, course: course, handle: 'member2')
+      TeamsParticipant.create!(team: old_team, participant: participant)
 
       assignment = Assignment.create!(
         title: 'Assignment 1',
