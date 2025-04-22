@@ -8,6 +8,18 @@ class AssignmentParticipant < Participant
 
   validates :handle, presence: true
 
+  # Sets a unique handle for this participant based on their user's handle or name.
+  # Moved to Participant superclass if shared logic applies.
+  def set_handle
+    self.handle = if user.handle.nil? || user.handle.strip.empty?
+                    user.name
+                  elsif Participant.exists?(assignment_id: assignment.id, handle: user.handle)
+                    user.name
+                  else
+                    user.handle
+                  end
+    save
+  end
 
   # Returns the reviewer object. If team reviewing is enabled, return the team.
   # Otherwise, return the participant themselves.
@@ -109,25 +121,29 @@ class AssignmentParticipant < Participant
     File.join(assignment.path, "#{participant.team.directory_num}_review", response_map_id.to_s)
   end
 
-  # Returns the current stage of the assignment for this participant based on topic signup.
-  def current_stage
-    topic_id = SignedUpTeam.topic_id(assignment_id, user_id)
-    assignment&.current_stage(topic_id)
-  end
+  # NOTE: Topic-specific stage tracking is not yet supported.
+  # These methods rely on SignedUpTeam.topic_id, which does not exist in the current schema.
+  # Keeping them commented for potential future implementation tied to topic-based assignments.
 
-  # Returns the deadline for the current assignment stage.
-  def stage_deadline
-    topic_id = SignedUpTeam.topic_id(assignment_id, user_id)
-    stage = assignment.stage_deadline(topic_id)
-
-    return stage unless stage == 'Finished'
-
-    if assignment.staggered_deadline?
-      TopicDueDate.where(parent_id: topic_id).order(due_at: :desc).first&.due_at.to_s
-    else
-      assignment.due_dates.last&.due_at.to_s
-    end
-  end
+  # # Returns the current stage of the assignment for this participant based on topic signup.
+  # def current_stage
+  #   topic_id = SignedUpTeam.topic_id(assignment_id, user_id)
+  #   assignment&.current_stage(topic_id)
+  # end
+  #
+  # # Returns the deadline for the current assignment stage.
+  # def stage_deadline
+  #   topic_id = SignedUpTeam.topic_id(assignment_id, user_id)
+  #   stage = assignment.stage_deadline(topic_id)
+  #
+  #   return stage unless stage == 'Finished'
+  #
+  #   if assignment.staggered_deadline?
+  #     TopicDueDate.where(parent_id: topic_id).order(due_at: :desc).first&.due_at.to_s
+  #   else
+  #     assignment.due_dates.last&.due_at.to_s
+  #   end
+  # end
 
   # Grants publishing rights by verifying the digital signature.
   def assign_copyright(private_key)
