@@ -28,7 +28,7 @@ class AssignmentTeam < Team
     assignment = Assignment.find(parent_id)
     raise 'The assignment cannot be found.' if assignment.nil?
 
-    ReviewResponseMap.create(reviewee_id: id, reviewer_id: reviewer.get_reviewer.id, reviewed_object_id: assignment.id, team_reviewing_enabled: assignment.team_reviewing_enabled)
+    ReviewResponseMap.create(reviewee_id: id, reviewer_id: reviewer.reviewer.id, reviewed_object_id: assignment.id, team_reviewing_enabled: assignment.team_reviewing_enabled)
   end
 
   # Returns the team itself as its own reviewer
@@ -38,7 +38,7 @@ class AssignmentTeam < Team
 
   # Returns true if the given reviewer has already reviewed this team
   def reviewed_by?(reviewer)
-    ReviewResponseMap.where('reviewee_id = ? && reviewer_id = ? && reviewed_object_id = ?', id, reviewer.get_reviewer.id, assignment.id).count > 0
+    ReviewResponseMap.where('reviewee_id = ? && reviewer_id = ? && reviewed_object_id = ?', id, reviewer.reviewer.id, assignment.id).count > 0
   end
 
   # Returns the topic ID that this team is signed up for (if any and not waitlisted)
