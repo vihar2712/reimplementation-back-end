@@ -129,8 +129,8 @@ class Team < ApplicationRecord
     users = participants.map { |p| User.find(p.user_id) }.to_a
     teams = Team.where(parent_id: parent.id, type: parent.class.to_s + 'Team').to_a
     teams.each do |team|
-      TeamsParticipant.where(team_id: team.id).each do |teams_user|
-        users.delete(User.find(teams_user.user_id))
+      TeamsParticipant.where(team_id: team.id).each do |teams_participant|
+        users.delete(User.find(teams_participant.user_id))
       end
     end
     teams.reject! { |team| team.size >= min_team_size }
