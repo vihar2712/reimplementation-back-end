@@ -223,7 +223,7 @@ class Api::V1::AssignmentsController < ApplicationController
                  .where(users: { id: current_user.id }, team_id: Team.where(assignment_id: assignment.id).pluck(:id))
                  .pluck(:sign_up_topic_id)
                  .first
-
+    
     assignment.staggered_and_no_topic?(topic_id)
   end
 end

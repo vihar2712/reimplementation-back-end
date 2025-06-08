@@ -1,4 +1,4 @@
-  class TeamsParticipant < ApplicationRecord
+class TeamsParticipant < ApplicationRecord
     belongs_to :participant
     belongs_to :team
 

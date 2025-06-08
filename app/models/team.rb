@@ -329,5 +329,19 @@ class Team < ApplicationRecord
       participant.course_id == course_id &&
         !TeamsParticipant.exists?(participant_id: participant.id)
     end
+
+    # Check if the user is a registered participant for this assignment or course
+    registered = participant_type.find_by(
+      user_id: participant.user_id,
+      parent_id: scope.id
+    )
+
+    unless registered
+      return { success: false, error: "#{participant.user.name} is not a participant in this #{label}" }
+    end
+
+    # All checks passed; participant is eligible to join the team
+    { success: true }
+
   end
 end
