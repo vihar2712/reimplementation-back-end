@@ -49,10 +49,15 @@ jobs:
           gem install bundler:2.4.7
           bundle install
           
-      - name: Setup database
+      -  name: Setup database
         run: |
           bundle exec rails db:create RAILS_ENV=test
-          bundle exec rails db:schema:load RAILS_ENV=test
+          if bundle exec rails db:abort_if_pending_migrations RAILS_ENV=test 2>/dev/null; then
+            echo "No pending migrations."
+          else
+            echo "Pending migrations detected. Running migrations..."
+            bundle exec rails db:migrate RAILS_ENV=test
+          fi
           
       - name: Set up code climate test-reporter
         run: |
