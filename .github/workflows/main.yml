@@ -49,7 +49,7 @@ jobs:
           gem install bundler:2.4.7
           bundle install
           
-      -  name: Setup database
+      - name: Setup database
         run: |
           bundle exec rails db:create RAILS_ENV=test
           if bundle exec rails db:abort_if_pending_migrations RAILS_ENV=test 2>/dev/null; then
